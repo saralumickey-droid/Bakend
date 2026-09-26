@@ -28,6 +28,7 @@ app.get('/api/clientes', async (req, res) => {
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: 'Error al obtener los clientes' });
+    console.error('ERROR CLIENTES:', error);
   }
 });
 
