@@ -3,10 +3,9 @@ import mysql from 'mysql2/promise';
 import cors from 'cors';
 
 const app = express();
-app.use(cors()); 
-app.use(express.json());
 
-const mysql = require("mysql2");
+app.use(cors());
+app.use(express.json());
 
 const db = mysql.createPool({
   host: process.env.DB_HOST,
@@ -22,17 +21,19 @@ const db = mysql.createPool({
   queueLimit: 0
 });
 
-db.getConnection((err, connection) => {
-  if (err) {
-    console.error("ERROR DE CONEXIÓN MYSQL:", err);
-    return;
+async function probarConexion() {
+  try {
+    const connection = await db.getConnection();
+    console.log('MYSQL CONECTADO CORRECTAMENTE');
+    console.log('HOST:', process.env.DB_HOST);
+    console.log('PORT:', process.env.DB_PORT);
+    connection.release();
+  } catch (error) {
+    console.error('ERROR DE CONEXIÓN MYSQL:', error);
   }
+}
 
-  console.log("MYSQL CONECTADO CORRECTAMENTE");
-  connection.release();
-});
-
-module.exports = db;
+probarConexion();
 
 // Rutas API Clientes
 app.get('/api/clientes', async (req, res) => {
@@ -47,13 +48,22 @@ app.get('/api/clientes', async (req, res) => {
 
 app.post('/api/clientes', async (req, res) => {
   const { nomCliente, contacto, departamento, ciudad } = req.body;
+
   try {
     const [result] = await db.query(
       'INSERT INTO clientes (nomCliente, contacto, departamento, ciudad) VALUES (?, ?, ?, ?)',
       [nomCliente, contacto, departamento, ciudad]
     );
-    res.json({ id_cliente: result.insertId, nomCliente, contacto, departamento, ciudad });
+
+    res.json({
+      id_cliente: result.insertId,
+      nomCliente,
+      contacto,
+      departamento,
+      ciudad
+    });
   } catch (error) {
+    console.error('ERROR CREAR CLIENTE:', error);
     res.status(500).json({ error: 'Error al crear el cliente' });
   }
 });
@@ -61,24 +71,35 @@ app.post('/api/clientes', async (req, res) => {
 app.put('/api/clientes/:id', async (req, res) => {
   const { id } = req.params;
   const { nomCliente, contacto, departamento, ciudad } = req.body;
+
   try {
     await db.query(
       'UPDATE clientes SET nomCliente = ?, contacto = ?, departamento = ?, ciudad = ? WHERE id_cliente = ?',
       [nomCliente, contacto, departamento, ciudad, id]
     );
+
     res.json({ message: 'Cliente actualizado correctamente' });
   } catch (error) {
+    console.error('ERROR ACTUALIZAR CLIENTE:', error);
     res.status(500).json({ error: 'Error al actualizar el cliente' });
   }
 });
 
 app.delete('/api/clientes/:id', async (req, res) => {
   const { id } = req.params;
+
   try {
-    await db.query('DELETE FROM clientes WHERE id_cliente = ?', [id]);
+    await db.query(
+      'DELETE FROM clientes WHERE id_cliente = ?',
+      [id]
+    );
+
     res.json({ message: 'Cliente eliminado correctamente' });
   } catch (error) {
-    res.status(500).json({ error: 'No se puede eliminar el cliente si tiene ventas asociadas' });
+    console.error('ERROR ELIMINAR CLIENTE:', error);
+    res.status(500).json({
+      error: 'No se puede eliminar el cliente si tiene ventas asociadas'
+    });
   }
 });
 
@@ -88,19 +109,28 @@ app.get('/api/productos', async (req, res) => {
     const [rows] = await db.query('SELECT * FROM productos');
     res.json(rows);
   } catch (error) {
+    console.error('ERROR PRODUCTOS:', error);
     res.status(500).json({ error: 'Error al obtener los productos' });
   }
 });
 
 app.post('/api/productos', async (req, res) => {
   const { nomProducto, cantidad, precio } = req.body;
+
   try {
     const [result] = await db.query(
       'INSERT INTO productos (nomProducto, cantidad, precio) VALUES (?, ?, ?)',
       [nomProducto, cantidad, precio]
     );
-    res.json({ id_producto: result.insertId, nomProducto, cantidad, precio });
+
+    res.json({
+      id_producto: result.insertId,
+      nomProducto,
+      cantidad,
+      precio
+    });
   } catch (error) {
+    console.error('ERROR CREAR PRODUCTO:', error);
     res.status(500).json({ error: 'Error al crear el producto' });
   }
 });
@@ -108,24 +138,35 @@ app.post('/api/productos', async (req, res) => {
 app.put('/api/productos/:id', async (req, res) => {
   const { id } = req.params;
   const { nomProducto, cantidad, precio } = req.body;
+
   try {
     await db.query(
       'UPDATE productos SET nomProducto = ?, cantidad = ?, precio = ? WHERE id_producto = ?',
       [nomProducto, cantidad, precio, id]
     );
+
     res.json({ message: 'Producto actualizado correctamente' });
   } catch (error) {
+    console.error('ERROR ACTUALIZAR PRODUCTO:', error);
     res.status(500).json({ error: 'Error al actualizar el producto' });
   }
 });
 
 app.delete('/api/productos/:id', async (req, res) => {
   const { id } = req.params;
+
   try {
-    await db.query('DELETE FROM productos WHERE id_producto = ?', [id]);
+    await db.query(
+      'DELETE FROM productos WHERE id_producto = ?',
+      [id]
+    );
+
     res.json({ message: 'Producto eliminado correctamente' });
   } catch (error) {
-    res.status(500).json({ error: 'No se puede eliminar el producto si esta en una venta' });
+    console.error('ERROR ELIMINAR PRODUCTO:', error);
+    res.status(500).json({
+      error: 'No se puede eliminar el producto si esta en una venta'
+    });
   }
 });
 
@@ -133,77 +174,154 @@ app.delete('/api/productos/:id', async (req, res) => {
 app.get('/api/ventas', async (req, res) => {
   try {
     const [rows] = await db.query(`
-      SELECT v.id_venta, v.id_cliente, c.nomCliente, v.fecha_venta, v.total, v.estado
+      SELECT
+        v.id_venta,
+        v.id_cliente,
+        c.nomCliente,
+        v.fecha_venta,
+        v.total,
+        v.estado
       FROM ventas v
       JOIN clientes c ON v.id_cliente = c.id_cliente
       ORDER BY v.id_venta DESC
     `);
+
     res.json(rows);
   } catch (error) {
+    console.error('ERROR VENTAS:', error);
     res.status(500).json({ error: 'Error al obtener las ventas' });
   }
 });
 
 app.get('/api/ventas/:id/detalles', async (req, res) => {
   const { id } = req.params;
+
   try {
     const [rows] = await db.query(`
-      SELECT d.id_detalle, d.id_producto, p.nomProducto, d.cantidad, d.precio_unitario, d.subtotal
+      SELECT
+        d.id_detalle,
+        d.id_producto,
+        p.nomProducto,
+        d.cantidad,
+        d.precio_unitario,
+        d.subtotal
       FROM detalle_venta d
       JOIN productos p ON d.id_producto = p.id_producto
       WHERE d.id_venta = ?
     `, [id]);
+
     res.json(rows);
   } catch (error) {
-    res.status(500).json({ error: 'Error al obtener los detalles de la venta' });
+    console.error('ERROR DETALLES VENTA:', error);
+    res.status(500).json({
+      error: 'Error al obtener los detalles de la venta'
+    });
   }
 });
 
 app.post('/api/ventas', async (req, res) => {
-  const { id_cliente, fecha_venta, total, estado, detalles } = req.body;
+  const {
+    id_cliente,
+    fecha_venta,
+    total,
+    estado,
+    detalles
+  } = req.body;
+
+  let connection;
 
   try {
-    await db.beginTransaction();
+    connection = await db.getConnection();
 
-    const [ventaResult] = await db.query(
+    await connection.beginTransaction();
+
+    const [ventaResult] = await connection.query(
       'INSERT INTO ventas (id_cliente, fecha_venta, total, estado) VALUES (?, ?, ?, ?)',
-      [id_cliente, fecha_venta, total, estado || 'Completada']
+      [
+        id_cliente,
+        fecha_venta,
+        total,
+        estado || 'Completada'
+      ]
     );
+
     const id_venta = ventaResult.insertId;
 
     for (const item of detalles) {
-      await db.query(
-        'INSERT INTO detalle_venta (id_venta, id_producto, cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?)',
-        [id_venta, item.id_producto, item.cantidad, item.precio_unitario, item.subtotal]
+      await connection.query(
+        `INSERT INTO detalle_venta
+        (id_venta, id_producto, cantidad, precio_unitario, subtotal)
+        VALUES (?, ?, ?, ?, ?)`,
+        [
+          id_venta,
+          item.id_producto,
+          item.cantidad,
+          item.precio_unitario,
+          item.subtotal
+        ]
       );
 
-      // Descontar del inventario
-      await db.query(
+      await connection.query(
         'UPDATE productos SET cantidad = cantidad - ? WHERE id_producto = ?',
-        [item.cantidad, item.id_producto]
+        [
+          item.cantidad,
+          item.id_producto
+        ]
       );
     }
 
-    await db.commit();
-    res.json({ message: 'Venta registrada con éxito', id_venta });
+    await connection.commit();
+
+    res.json({
+      message: 'Venta registrada con éxito',
+      id_venta
+    });
+
   } catch (error) {
-    await db.rollback();
-    res.status(500).json({ error: 'Error al registrar la venta' });
+    if (connection) {
+      await connection.rollback();
+    }
+
+    console.error('ERROR REGISTRAR VENTA:', error);
+
+    res.status(500).json({
+      error: 'Error al registrar la venta'
+    });
+
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
 app.put('/api/ventas/:id/cancelar', async (req, res) => {
   const { id } = req.params;
+
   try {
-    await db.query("UPDATE ventas SET estado = 'Cancelada' WHERE id_venta = ?", [id]);
-    res.json({ message: 'Venta cancelada con éxito' });
+    await db.query(
+      "UPDATE ventas SET estado = 'Cancelada' WHERE id_venta = ?",
+      [id]
+    );
+
+    res.json({
+      message: 'Venta cancelada con éxito'
+    });
+
   } catch (error) {
-    res.status(500).json({ error: 'Error al cancelar la venta' });
+    console.error('ERROR CANCELAR VENTA:', error);
+
+    res.status(500).json({
+      error: 'Error al cancelar la venta'
+    });
   }
 });
 
 // Inicialización del servidor
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
+});
   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
